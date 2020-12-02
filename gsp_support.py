@@ -7,7 +7,7 @@ Created on Fri Feb  2 12:09:27 2018
 @author: haroonr
 """
 
-from __future__ import division 
+from __future__ import division
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
@@ -22,75 +22,122 @@ from math import sqrt
 import os
 
 #%%
-def gspclustering_event2(event,delta_p,sigma):
- 
-  winL = 1000 # this define  number of observations in a window, the algorthm works in a sliding window manner
-  Smstar = np.zeros((len(event),1))
-  for k in range(0,int(np.floor(len(event)/winL))):
-    r = []
-    event_1 =  event[k*winL:((k+1)*winL)]
-    # followed as such from the MATLAB code
-    r.append(delta_p[event[0]])
-    [r.append(delta_p[event_1[i]]) for i in range(0,len(event_1))]
-    templen = winL + 1
-    Sm = np.zeros((templen,1))
-    Sm[0] = 1;
+def calc_adj_matrix(size, r, sigma):
+    Am = np.zeros((size, size))
+    for i in range(0, size):
+        for j in range(0, size):
+            Am[i,j] = math.exp(-((r[i] - r[j]) / sigma) ** 2);
+            #if np.isnan(Am[i,j]):
+            #    print('Problem with {}@{} {}@{} in size {}, sigma {}'.format(r[i], i, r[j], j, len(r), sigma))
+             #Gaussian kernel weighting function
 
-    Am = np.zeros((templen,templen))
-    for i in range(0,templen):
-      for j in range(0,templen):
-         Am[i,j] = math.exp(-((r[i]-r[j])/sigma)**2);
-         #Gaussian kernel weighting function
-    Dm = np.zeros((templen,templen));
-    # create diagonal matrix
-    for i in range(templen):
-      Dm[i,i] = np.sum(Am[:,i]);
-    Lm = Dm - Am;
-    Smstar[k*winL:(k+1)*winL] = np.matmul(np.linalg.pinv(Lm[1:templen,1:templen]), ((-Sm[0].T) * Lm[0,1:templen]).reshape(-1,1));
+    return Am
+
+def calc_deg_matrix(size, Am):
+    Dm = np.zeros((size, size))
+    for i in range(size):
+        Dm[i,i] = np.sum(Am[:,i])
+
+    return Dm
+
+def gspclustering_extend_event2(cluster, event, delta_p, sigma):
+    '''Cluster events around the first cluster, return first cluster with added events'''
+    winL = 1000 # this define  number of observations in a window, the algorthm works in a sliding window manner
+    Smstar = np.zeros((len(event), 1))
+    for k in range(0,int(np.floor(len(event) / winL))):
+        r = []
+        event_1 = event[k * winL : ((k + 1) * winL)]
+# followed as such from the MATLAB code
+        r.append(delta_p[cluster[0]])
+        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+        templen = winL + 1
+        Sm = np.zeros((templen, 1))
+        Sm[0] = 1;
+
+        Am = calc_adj_matrix(templen, r, sigma) #Calc adj
+        Dm = calc_deg_matrix(templen, Am) #Calc degree
+        Lm = Dm - Am #Calc Laplacian
+
+        print(templen)
+        Smstar[k * winL : (k + 1) * winL] = np.matmul(np.linalg.pinv(Lm[1 : templen, 1 : templen]), ((-Sm[0].T) * Lm[0, 1 : templen]).reshape(-1, 1));
   # for remaining elements of the event list
-  if (len(event)%winL > 0):
-    r = []
-    event_1 =  event[int(np.floor(len(event)/winL))*winL:]
-    newlen = len(event_1) + 1
-    r.append(delta_p[event[0]])
-    [r.append(delta_p[event_1[i]]) for i in range(0,len(event_1))]
-    Sm = np.zeros((newlen,1))
-    Sm[0] = 1;
-    Am = np.zeros((newlen,newlen))
-    for i in range(newlen):
-      for j in range(newlen):
-          #print(i,j)
-          #print('\n')
-         Am[i,j] =  math.exp(-((r[i]-r[j])/sigma)**2);
-         #Gaussian kernel weighting function
-    Dm = np.zeros((newlen,newlen));
-    for i in range(newlen):
-      Dm[i,i] = np.sum(Am[:,i]);
-    Lm = Dm - Am;
-    Smstar_temp = np.matmul(np.linalg.pinv(Lm[1:newlen,1:newlen]), ((-Sm[0].T) * Lm[0,1:newlen]).reshape(-1,1));
-    Smstar[(int(np.floor(len(event)/winL))*winL):len(event)] = Smstar_temp
+    if (len(event) % winL > 0):
+        r = []
+        event_1 =  event[int(np.floor(len(event) / winL)) * winL :]
+        newlen = len(event_1) + 1
+        r.append(delta_p[cluster[0]])
+        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+        Sm = np.zeros((newlen, 1))
+        Sm[0] = 1;
+
+        Am = calc_adj_matrix(newlen, r, sigma)
+        Dm = calc_deg_matrix(newlen, Am)
+        Lm = Dm - Am;
+
+        Smstar_temp = np.matmul(np.linalg.pinv(Lm[1 : newlen, 1 : newlen]), ((-Sm[0].T) * Lm[0, 1 : newlen]).reshape(-1, 1));
+        Smstar[(int(np.floor(len(event) / winL)) * winL) : len(event)] = Smstar_temp
   # 0.98 values has been obtained emparically
-  cluster = [event[i] for i in range(len(Smstar)) if (Smstar[i] > 0.98)]
-  return cluster
+    cluster = [event[i] for i in range(len(Smstar)) if (Smstar[i] > 0.95)]
+    return cluster
+
+def gspclustering_event2(event, delta_p, sigma):
+    winL = 1000 # this define  number of observations in a window, the algorthm works in a sliding window manner
+    Smstar = np.zeros((len(event), 1))
+    for k in range(0,int(np.floor(len(event) / winL))):
+        r = []
+        event_1 = event[k * winL : ((k + 1) * winL)]
+# followed as such from the MATLAB code
+        r.append(delta_p[event[0]])
+        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+        templen = winL + 1
+        Sm = np.zeros((templen, 1))
+        Sm[0] = 1;
+
+        Am = calc_adj_matrix(templen, r, sigma) #Calc adj
+        Dm = calc_deg_matrix(templen, Am) #Calc degree
+        Lm = Dm - Am #Calc Laplacian
+
+        print(templen)
+        Smstar[k * winL : (k + 1) * winL] = np.matmul(np.linalg.pinv(Lm[1 : templen, 1 : templen]), ((-Sm[0].T) * Lm[0, 1 : templen]).reshape(-1, 1));
+  # for remaining elements of the event list
+    if (len(event) % winL > 0):
+        r = []
+        event_1 =  event[int(np.floor(len(event) / winL)) * winL :]
+        newlen = len(event_1) + 1
+        r.append(delta_p[event[0]])
+        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+        Sm = np.zeros((newlen, 1))
+        Sm[0] = 1;
+
+        Am = calc_adj_matrix(newlen, r, sigma)
+        Dm = calc_deg_matrix(newlen, Am)
+        Lm = Dm - Am;
+
+        Smstar_temp = np.matmul(np.linalg.pinv(Lm[1 : newlen, 1 : newlen]), ((-Sm[0].T) * Lm[0, 1 : newlen]).reshape(-1, 1));
+        Smstar[(int(np.floor(len(event) / winL)) * winL) : len(event)] = Smstar_temp
+  # 0.98 values has been obtained emparically
+    cluster = [event[i] for i in range(len(Smstar)) if (Smstar[i] > 0.95)]
+    return cluster
 
 #%%
-def johntable(clusters,precluster,delta_p,ri):
-  import math
-  for h in range(0,len(clusters)):  
-    stds = np.std([delta_p[i] for i in clusters[h]],ddof=1)
-    if(math.isnan(stds)):
-      stds = 0
-    means = np.mean([delta_p[i] for i in clusters[h]])
-    if abs(stds/means) <= ri :
-      precluster.append([i for i in clusters[h]])
-  return precluster
+def johntable(clusters, precluster, delta_p, ri):
+    ''' adds to precluster if the cluster is good enough '''
+    import math
+    for h in range(0, len(clusters)):
+        stds = np.std([delta_p[i] for i in clusters[h]], ddof=1)
+        if(math.isnan(stds)):
+            stds = 0
+        means = np.mean([delta_p[i] for i in clusters[h]])
+        if abs(stds / means) <= ri:
+            precluster.append([i for i in clusters[h]])
+    return precluster
 
 #%%
 def find_new_events(clusters,delta_p,ri):
   ''' This differs from johntable function in line containing divison statement'''
   import math
   newevents = []
-  for h in range(0,len(clusters)):  
+  for h in range(0,len(clusters)):
     stds = np.std([delta_p[i] for i in clusters[h]],ddof=1)
     if(math.isnan(stds)):
       stds = 0
@@ -112,7 +159,7 @@ def feature_matching_module(pairs,DelP,Newcluster,alpha,beta):
       state_pairs = []
       for j in range(len(pos_cluster)):
          if j==len(pos_cluster)-1:  # last positive element
-             flag = 1 
+             flag = 1
              start_pos = pos_cluster[j]
          if flag:
              neg_set = [h for h in neg_cluster if (h > start_pos)]
@@ -227,13 +274,13 @@ def label_appliances(appliance_signatures, signature_database, threshold):
 #%%
 def DTW(s1, s2):
     DTW={}
-    
+
     for i in range(len(s1)):
         DTW[(i, -1)] = float('inf')
     for i in range(len(s2)):
         DTW[(-1, i)] = float('inf')
     DTW[(-1, -1)] = 0
-    
+
     for i in range(len(s1)):
         for j in range(len(s2)):
             dist= (s1[i]-s2[j])**2
@@ -244,14 +291,14 @@ def DTW(s1, s2):
 #%%
 def FastDTW(s1, s2, w):
     DTW={}
-    
+
     w = max(w, abs(len(s1)-len(s2)))
-    
+
     for i in range(-1,len(s1)):
         for j in range(-1,len(s2)):
             DTW[(i, j)] = float('inf')
     DTW[(-1, -1)] = 0
-    
+
     for i in range(len(s1)):
         for j in range(max(0, i-w), min(len(s2), i+w)):
             dist= (s1[i]-s2[j])**2
@@ -263,7 +310,7 @@ def FastDTW(s1, s2, w):
 def write_csv_df(path, filename, df):
     # Give the filename you wish to save the file to
     pathfile = os.path.normpath(os.path.join(path,filename))
-    
+
     # Use this function to search for any files which match your filename
     files_present = os.path.isfile(pathfile)
     # if no matching files, write to csv, if there are matching files, print statement
@@ -276,7 +323,7 @@ def write_csv_df(path, filename, df):
         elif overwrite == 'n':
             return
         else:
-            print "Not a valid input. Data is NOT saved!\n"
+            print("Not a valid input. Data is NOT saved!\n")
     return
 
 #%%
@@ -337,14 +384,14 @@ def refined_clustering_block(event,delta_p,sigma,ri):
     sigmas = [sigma,sigma/2,sigma/4,sigma/8,sigma/14,sigma/32,sigma/64]
     Finalcluster = []
     for k in range(0,len(sigmas)):
-        clusters = []     
-        event = sorted(list(set(event)-set(clusters))) 
+        clusters = []
+        event = sorted(list(set(event)-set(clusters)))
         while len(event):
             clus =  gspclustering_event2(event,delta_p,sigmas[k]);
             clusters.append(clus)
             event = sorted(list(set(event)-set(clus)))
         if k == len(sigmas)-1:
-            Finalcluster = Finalcluster + clusters 
+            Finalcluster = Finalcluster + clusters
         else:
             jt = johntable(clusters,Finalcluster,delta_p,ri)
             Finalcluster = jt
@@ -356,18 +403,176 @@ def refined_clustering_block(event,delta_p,sigma,ri):
     return Finalcluster
 
 #%%
-def find_closest_pair(cluster_means,cluster_group): 
+def extend_refined_clustering_block(initial_clusters, initial_event, hist_delta_power, sigma, ri):
+    ''' this tries to cluster new events with existing clusters and creates new clusters
+    if the matches are poor'''
+    sigmas = [sigma, sigma / 2, sigma / 4, sigma / 8, sigma / 16, sigma / 32, sigma / 64]
+    Finalcluster = []
+
+    #print(hist_delta_power)
+    #Go through and try to cluster around existing clusters
+    event = list(initial_event)
+    newclusters = []
+    for cluster in initial_clusters:
+        extension = gspclustering_extend_event2(cluster, event, hist_delta_power, sigmas[0])
+        #if len(extension) != 0:
+        #    print('Extended a cluster!')
+        clus = cluster + extension
+        newclusters.append(clus)
+        event = sorted(list(set(event) - set(clus)))
+    clusters = newclusters
+    #print('\tWe got {} edges now'.format(sum([len(c) for c in clusters]) + len(event)))
+    #print('\t\tStarting events {}'.format(len(event)))
+
+    for k in range(0, len(sigmas)):
+        event = sorted(list(set(event)))
+        #print('\t\tLook events {}'.format(len(event)))
+
+        #Cluster the remaining edges that don't belong
+        while len(event):
+            clus = gspclustering_event2(event, hist_delta_power, sigmas[k]);
+            clusters.append(clus)
+            event = sorted(list(set(event) - set(clus)))
+
+        if k == len(sigmas) - 1:
+            Finalcluster = Finalcluster + clusters
+        else:
+            jt = johntable(clusters, Finalcluster, hist_delta_power, ri)
+            Finalcluster = jt
+            events_updated = find_new_events(clusters, hist_delta_power, ri)
+            events_updated = sorted(events_updated)
+            event = events_updated
+            clusters = []
+
+    if len(event) > 0:
+        Finalcluster.append(event)
+
+    return Finalcluster
+
+def shrink_positive_negative(Finalcluster, data_vec, delta_p, instancelimit):
+    ''' this makes the set of positive clusters and negative the same size, also sort by mean'''
+    #% Here I count number of members of each cluster, their mean and standard deviation and store such stats in Table_1. Next, I sort 'Finalcluster' according to cluster means in decreasing order.
+    Table_1 =  np.zeros((len(Finalcluster), 4))
+    for i in range(len(Finalcluster)):
+        Table_1[i, 0] = len(Finalcluster[i])
+        Table_1[i, 1] = np.mean([delta_p[j] for j in Finalcluster[i]])
+        Table_1[i, 2] = np.std([delta_p[j] for j in Finalcluster[i]], ddof=1)
+        Table_1[i, 3] =  abs(Table_1[i, 2] / Table_1[i, 1])
+    #% sorting module
+    sort_means = np.argsort(Table_1[:, 1]).tolist() # returns positions of sorted array
+    sort_means.reverse() # gives decreasing order
+    sorted_cluster = []
+    FinalTable = []
+    for i in range(len(sort_means)):
+        sorted_cluster.append(Finalcluster[sort_means[i]])
+        FinalTable.append(Table_1[sort_means[i]].tolist())
+    #%
+    # Here I reduce number of clusters. I keep clusters with more than or equal 'instancelimit' members as such and in next cell I merge cluster with less than 5 members to clusters with more than 'instancelimit' members
+    # DelP seems redundant but lets move on
+    DelP = [round(data_vec[i + 1] - data_vec[i], 2) for i in range(0, len(data_vec) - 1)]
+    Newcluster_1 = []
+    Newtable = []
+    #instancelimit = 20
+    for i in range(0, len(FinalTable)):
+        if FinalTable[i][0] >= instancelimit:
+            Newcluster_1.append(sorted_cluster[i])
+            Newtable.append(FinalTable[i])
+    Newcluster = Newcluster_1
+    #% merge cluster with less than intancelimit members to clusters with more than 5 members
+    for i in range(0, len(FinalTable)):
+        if FinalTable[i][0] < instancelimit:
+            for j in range(len(sorted_cluster[i])):
+                count =  []
+                for k in range(len(Newcluster)):
+                      count.append(norm.pdf(DelP[sorted_cluster[i][j]], Newtable[k][1], Newtable[k][2]))
+                asv = [h == max(count) for h in count]
+                if sum(asv) == 1:
+                    johnIndex = count.index(max(count))
+                elif DelP[sorted_cluster[i][j]] > 0:
+#print("case1",i,j)
+                    tablemeans = [r[1] for r in Newtable]
+                    tempelem = [r for r in tablemeans if r < DelP[sorted_cluster[i][j]]][0]
+                    johnIndex = tablemeans.index(tempelem)
+                else:
+                    tablemeans = [r[1] for r in Newtable]
+                    tempelem = [r for r in tablemeans if r > DelP[sorted_cluster[i][j]]].pop()
+                    johnIndex = tablemeans.index(tempelem)
+                Newcluster[johnIndex].append(sorted_cluster[i][j])
+
+    # updating table means in new table
+    Table_2 =  np.zeros((len(Newcluster), 4))
+
+    for i in range(len(Newcluster)):
+        Table_2[i, 0] = len(Newcluster[i])
+        Table_2[i, 1] = np.mean([delta_p[j] for j in Newcluster[i]])
+        Table_2[i, 2] = np.std([delta_p[j] for j in Newcluster[i]], ddof=1)
+        Table_2[i, 3] =  abs(Table_2[i, 2] / Table_2[i, 1])
+
+    Newtable = Table_2
+    #%
+    # Ideally, number of positive clusters should be equal to negative clusters. if one type is more than the other then we merge extra clusters until we get equal number of positive and negative clusters
+    pos_clusters = neg_clusters = 0
+
+    for i in range(Newtable.shape[0]):
+        if Newtable[i][1] > 0:
+            pos_clusters += 1
+        else:
+            neg_clusters += 1
+
+    Newcluster_cp = deepcopy(Newcluster)
+
+    # merge until we get equal number of positive and negative clusters
+    while pos_clusters != neg_clusters:
+        index_cluster = Newcluster_cp
+        power_cluster = []
+
+        for i in index_cluster:
+            list_member = []
+            for j in i:
+                list_member.append(delta_p[j])
+            power_cluster.append(list_member)
+
+        clustermeans = [np.mean(i) for i in power_cluster]
+        positive_cluster_chunk= []
+        negative_cluster_chunk = []
+        positive_cluster_means= []
+        negative_cluster_means = []
+        pos_clusters = neg_clusters = 0
+
+        for j in range(len(clustermeans)):
+           if clustermeans[j] > 0:
+                pos_clusters += 1
+                positive_cluster_chunk.append(index_cluster[j])
+                positive_cluster_means.append(clustermeans[j])
+           else:
+                neg_clusters += 1
+                negative_cluster_chunk.append(index_cluster[j])
+                negative_cluster_means.append(clustermeans[j])
+
+        if pos_clusters > neg_clusters:
+             positive_cluster_chunk = find_closest_pair(positive_cluster_means, positive_cluster_chunk)
+        elif neg_clusters > pos_clusters:
+             negative_cluster_chunk = find_closest_pair(negative_cluster_means, negative_cluster_chunk)
+        else:
+            pass
+
+        Newcluster_cp = positive_cluster_chunk + negative_cluster_chunk
+
+    return Newcluster_cp
+
+#%%
+def find_closest_pair(cluster_means,cluster_group):
     ''' this identifies closest clusters wrt to mean and then merges those clusters into one'''
-    distances = []   
+    distances = []
     for i in range(len(cluster_means)-1):
         for j in range((i+1),len(cluster_means)):
             #print i,j
-           distance = abs(cluster_means[i] - cluster_means[j])  
+           distance = abs(cluster_means[i] - cluster_means[j])
            distances.append((i,j,distance))
     merge_pair = min(distances, key = lambda h:h[2])
     # convert list to dict for simplicity
     cluster_dict = {}
-    for i in range(len(cluster_group)): 
+    for i in range(len(cluster_group)):
         cluster_dict[i] =  cluster_group[i]
     # merge cluster using above merge_pair and copy remaining as such
     tempcluster = []
@@ -397,7 +602,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
       sorted_cluster.append(Finalcluster[sort_means[i]])
       FinalTable.append(Table_1[sort_means[i]].tolist())
     #%
-    # Here I reduce number of clusters. I keep clusters with more than or equal 'instancelimit' members as such and in next cell I merge cluster with less than 5 members to clusters with more than 'instancelimit' members 
+    # Here I reduce number of clusters. I keep clusters with more than or equal 'instancelimit' members as such and in next cell I merge cluster with less than 5 members to clusters with more than 'instancelimit' members
     # DelP seems redundant but lets move on
     DelP = [round(data_vec[i+1]-data_vec[i],2) for i in range(0,len(data_vec)-1)]
     Newcluster_1 = []
@@ -408,7 +613,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
         Newcluster_1.append(sorted_cluster[i])
         Newtable.append(FinalTable[i])
     Newcluster = Newcluster_1
-    #% merge cluster with less than intancelimit members to clusters with more than 5 members 
+    #% merge cluster with less than intancelimit members to clusters with more than 5 members
     for i in range(0,len(FinalTable)):
       if(FinalTable[i][0] < instancelimit ):
         for j in range(len(sorted_cluster[i])):
@@ -455,7 +660,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
             for j in i:
                 list_member.append(delta_p[j])
             power_cluster.append(list_member)
-            
+
         clustermeans = [np.mean(i) for i in power_cluster]
         positive_cluster_chunk= []
         negative_cluster_chunk = []
@@ -471,7 +676,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
                 neg_clusters += 1
                 negative_cluster_chunk.append(index_cluster[j])
                 negative_cluster_means.append(clustermeans[j])
-                
+
         if pos_clusters > neg_clusters:
             #print ('call positive')
              positive_cluster_chunk = find_closest_pair(positive_cluster_means, positive_cluster_chunk)
@@ -481,7 +686,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
         else:
             pass
         Newcluster_cp = positive_cluster_chunk + negative_cluster_chunk
-    
+
     #%
     # Use Newcluster_cp for pairing. Basically here we combine one positive cluster with one negative cluster, which corresponds to ON and OFF instances of the same appliance
     clus_means = []
@@ -489,7 +694,7 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
         list_member = []
         for j in i:
             list_member.append(delta_p[j])
-        clus_means.append(np.mean(list_member))    
+        clus_means.append(np.mean(list_member))
     pairs = []
     for i in range(len(clus_means)):
       if clus_means[i] > 0: # positive edge
@@ -519,12 +724,12 @@ def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit)
 
 #%%
 # seems obselte one
-def find_closest_pairs(start_cluster,end_cluster,cluster_means,required_reduction): 
-    distances = []   
+def find_closest_pairs(start_cluster,end_cluster,cluster_means,required_reduction):
+    distances = []
     for i in range(start_cluster, end_cluster):
         for j in range((i+1),end_cluster+1):
             #print i,j
-           distance = abs(cluster_means[i] - cluster_means[j])  
+           distance = abs(cluster_means[i] - cluster_means[j])
            distances.append((i,j,distance))
     distances  = pd.DataFrame.from_records(distances)
     distances.columns = ['cluster_1','cluster_2','difference']

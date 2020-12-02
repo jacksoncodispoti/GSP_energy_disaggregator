@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 print("1 of 6> reading data")
 csvfileaggr = "./output_aggr.csv"
 csvfiledisaggr = "./output_disaggr.csv"
+#csvfileaggr = "./house_2_output_aggr.csv"
+#csvfiledisaggr = "./house_2_output_disaggr.csv"
 df = pd.read_csv(csvfileaggr, index_col = "Time") # read demo file with aggregated active power
 df.index = pd.to_datetime(df.index)
 dfd = pd.read_csv(csvfiledisaggr, index_col = "Time") # read file with ground truth disaggregated appliances
@@ -25,7 +27,8 @@ dfd.index = pd.to_datetime(dfd.index)
 
 # select date range
 start_date = '2011-04-23' # from 2011-04-23
-end_date = '2011-05-02' # to 2011-05-01
+end_date = '2011-04-28'
+#end_date = '2011-05-02' # to 2011-05-01
 mask = (df.index > start_date) & (df.index < end_date)
 df = df.loc[mask]
 mask = (dfd.index > start_date) & (dfd.index < end_date)
@@ -43,14 +46,14 @@ sigma = 20;
 ri = 0.15
 T_Positive = 20;
 T_Negative = -20;
-#Following parameters alpha and beta are used in Equation 15 of the paper 
+#Following parameters alpha and beta are used in Equation 15 of the paper
 # alpha define weight given to magnitude and beta define weight given to time
 alpha = 0.5
 beta  = 0.5
 # this defines the  minimum number of times an appliance is set ON in considered time duration
 instancelimit = 3
 
-#%% 
+#%%
 main_val = df.values # get only readings
 main_ind = df.index  # get only timestamp
 data_vec =  main_val
@@ -58,13 +61,17 @@ signature_database = "signature_database_labelled.csv" #the signatures were extr
 threshold = 2000 # threshold of DTW algorithm used for appliance power signature matching
 
 delta_p = [round(data_vec[i+1] - data_vec[i], 2) for i in range(0, len(data_vec) - 1)]
-event =  [i for i in range(0, len(delta_p)) if (delta_p[i] > T_Positive or delta_p[i] < T_Negative) ]
+event =  [i for i in range(0, len(delta_p)) if (delta_p[i] > T_Positive or delta_p[i] < T_Negative) ][0:980]
 
 # initial and refined clustering block of Figure 1 in the paper
 clusters = gsp.refined_clustering_block(event, delta_p, sigma, ri)
+print('Expected {} got {}'.format(len(event), sum([len(c) for c in clusters])))
+print('Got {} clusters'.format(len(clusters)))
 
 # Feature matching block of Figure 1 in the paper
 finalclusters, pairs = gsp.pair_clusters_appliance_wise(clusters, data_vec, delta_p, instancelimit)
+print('Found {} pairs'.format(pairs))
+print('Got {} clusters and {} final clusters'.format(len(clusters), len(finalclusters)))
 appliance_pairs = gsp.feature_matching_module(pairs, delta_p, finalclusters, alpha, beta)
 
 # create appliance wise disaggregated series
@@ -79,9 +86,11 @@ power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
 # create pandas dataframe of all series
 gsp_result = pd.concat(power_timeseries, axis = 1)
 
+#labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
 labels= [i[1] for i in list(labeled_appliances.items())]
 gsp_result.columns = labels
 
+print(gsp_result)
 axs[2].stackplot(gsp_result.index, gsp_result.values.T, labels=labels)
 axs[2].set_title("Disaggregated appliance [Results]", size=8)
 axs[2].legend(loc='upper left', fontsize=6)
