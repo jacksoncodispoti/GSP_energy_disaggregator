@@ -1,0 +1,31 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{mathtools}
+
+\begin{document}
+\section{Notation}
+\subsection{Symbols}
+\begin{tabular}{c c}
+	$\ell_i\in L$	&	Set of all labels\\
+	$R_t = \{ (\ell_i, [0,1]) : \ell_i \in L \}$	&	Report from user query for time period $t$\\
+	$E_t$	&	Edges in time frame $t$\\
+	$c_i\in C$	& 	Set of all clusters\\
+	$s_i\in S$	&	Set of all streams (as defined in Python code\\
+	$\phi(e_i)=-1,1$&	Whether or not edge is rising or falling\\
+	$\sim$	&	Associated with\\
+\end{tabular}
+
+\subsection{Assumptions}
+\begin{itemize}
+	\item Each edge is associated with a cluster
+		\[ \forall e_j \in E_t, e_j \sim c_k \text{ for some } c_k \in C \]
+	\item Each cluster is associated with a sream
+		\[ \forall c_i \in C, c_i \sim s_j \text{ for some } s_j \in S \]
+\end{itemize}
+
+\section{Problem}
+Given: For a time period, $t$, the period's edges $E_t$, the period's response $R_t$, clusters $C$, and streams $S$, assign a label $\ell_i$ for each $s_i \in S$.
+
+\section{Solution}
+
+\end{document}
