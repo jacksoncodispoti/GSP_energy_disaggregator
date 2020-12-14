@@ -51,7 +51,7 @@ T_Negative = -20
 alpha = 0.5
 beta = 0.5
 # this defines the  minimum number of times an appliance is set ON in considered time duration
-instancelimit = 3
+instancelimit = 17
 
 init_size = 24 * 60 * 4 #Number of minutes to get initial clusters from
 frame_size = 60 * 6 #Number of minutes to run over in each phase
