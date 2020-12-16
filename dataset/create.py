@@ -20,14 +20,18 @@ try:
 except OSError as error:
     pass
 
-aggr_name = '{}/output_aggr.csv' .format(house)
-disaggr_name = '{}/output_disaggr.csv' .format(house)
+aggr_name = '{}/output_aggr.csv'.format(house)
+disaggr_name = '{}/output_disaggr.csv'.format(house)
+response_name = '{}/output_response.csv'.format(house)
 
 #channel_mask = []
 
 channels = []
 channel_names = {}
-print(settings.channel_mask)
+print('Reading config')
+print('\t{}'.format(settings.__dict__))
+print('\t{}'.format(settings.channel_mask))
+print('Reading labels')
 with open(house_dir + 'labels.dat') as label_file:
     csv_reader = csv.reader(label_file, delimiter=' ')
 
@@ -35,7 +39,7 @@ with open(house_dir + 'labels.dat') as label_file:
         num, name = row
 
         if len(settings.channel_mask) > 0 and not (name in settings.channel_mask):
-            print('{} is not in channel_mask'.format(name))
+            print('\t{} is not in channel_mask, skipping'.format(name))
             continue
 
         #Auto-increment names
@@ -67,10 +71,11 @@ disagg = pd.DataFrame(None, main1.index)
 #pd.set_option('display.width', None)
 #pd.set_option('display.max_colwidth', -1)
 
+print('Processing channels')
 for c_path, c_name in channels:
     if settings.sort_order and not (c_name in settings.sort_order):
         continue
-    print('Processing channel {}'.format(c_name))
+    print('\tProcessing channel {}'.format(c_name))
     channel_frame = pd.read_csv(c_path, index_col=0, delimiter=' ', names=['Time', c_name])
     channel_frame.index = pd.to_datetime(channel_frame.index, unit='s')
 #    print(channel_frame)
@@ -80,20 +85,31 @@ for c_path, c_name in channels:
 #disagg = disagg.resample('1T').min().round()
 disagg = disagg.resample('1T').max().round()
 
+print('Writing CSVs')
 if settings.sort_order:
     columns = settings.sort_order
 else:
     columns = [c_name for c_path, c_name in channels]
 
-print(disagg.shape)
+print('\tWriting disaggr')
 if settings.start_time:
     disagg[settings.start_time : settings.end_time].to_csv(disaggr_name, columns=columns)
 else:
     disagg.to_csv(disaggr_name, columns=columns)
 
+
+response = disagg.resample('1H').max().ge(settings.threshold)
+
+print('\tWriting response')
+if settings.start_time:
+    response[settings.start_time : settings.end_time].to_csv(response_name, columns=columns)
+else:
+    response.to_csv(response_name, columns=columns)
+
 main_agg = disagg.transpose()
 main_agg = main_agg.sum()
 
+print('\tWriting aggr')
 if settings.start_time:
     main_agg[settings.start_time : settings.end_time].to_csv(aggr_name, index_label='Time', header=['aggregate'])
 else:

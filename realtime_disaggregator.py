@@ -15,11 +15,21 @@ import numpy as np
 import gsp_support as gsp
 import matplotlib.pyplot as plt
 import sys
+from config import get_disagg_settings, DisaggSettings
 
+disagg_only = True
 #%%
+if len(sys.argv) < 2:
+    print('Usage: python realtime_disaggregator.py [house_num]')
+    exit()
+
+print("Loading settings")
+house_num = sys.argv[1]
+settings = get_disagg_settings(house_num)
+
 print("1 of 6> reading data")
-csvfileaggr = "./output_aggr.csv"
-csvfiledisaggr = "./output_disaggr.csv"
+csvfileaggr = 'dataset/house_{}/output_aggr.csv'.format(house_num)
+csvfiledisaggr = 'dataset/house_{}/output_disaggr.csv'.format(house_num)
 
 #csvfileaggr = "./house_2_output_aggr.csv"
 #csvfiledisaggr = "./house_2_output_disaggr.csv"
@@ -33,28 +43,11 @@ demo_file_truth.index = pd.to_datetime(demo_file_truth.index)
 #print(demo_file.values)
 #exit()
 # select date range
-start_date = '2011-04-23' # from 2011-04-23
-end_date = '2011-05-01' # to 2011-05-01
-mask = (demo_file.index > start_date) & (demo_file.index < end_date)
+mask = (demo_file.index > settings.start_time) & (demo_file.index < settings.end_time)
 demo_file = demo_file.loc[mask]
-mask = (demo_file_truth.index > start_date) & (demo_file_truth.index < end_date)
+mask = (demo_file_truth.index > settings.start_time) & (demo_file_truth.index < settings.end_time)
 demo_file_truth = demo_file_truth.loc[mask]
 
-
-# Please read the paper to undertand following parameters. Note initial values of these parameters depends on the appliances used and the frequency of usage.
-sigma = 20
-ri = 0.15
-T_Positive = 20
-T_Negative = -20
-#Following parameters alpha and beta are used in Equation 15 of the paper
-# alpha define weight given to magnitude and beta define weight given to time
-alpha = 0.5
-beta = 0.5
-# this defines the  minimum number of times an appliance is set ON in considered time duration
-instancelimit = 17
-
-init_size = 24 * 60 * 4 #Number of minutes to get initial clusters from
-frame_size = 60 * 6 #Number of minutes to run over in each phase
 
 #%%
 main_val = demo_file.values # get only readings
@@ -66,24 +59,25 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 
 #Create the initial clusters from the 1st bit of data
 current_time = 0
-initial_data = data_vec[current_time : current_time + init_size]
+initial_data = data_vec[current_time : current_time + settings.init_size]
 initial_delta_power = [round(initial_data[i + 1] - initial_data[i], 2) for i in range(0, len(initial_data) - 1)]
-initial_events = [i for i in range(0, len(initial_delta_power)) if (initial_delta_power[i] > T_Positive or initial_delta_power[i] < T_Negative) ]
-clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, sigma, ri)
+initial_events = [i for i in range(0, len(initial_delta_power)) if (initial_delta_power[i] > settings.T_Positive or initial_delta_power[i] < settings.T_Negative) ]
+clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
 print('Expected {} got {}'.format(len(initial_events), sum([len(c) for c in clusters])))
-current_time += init_size
+current_time += settings.init_size
 
 hist_delta_power= initial_delta_power
 #Testing to make sure it works
-clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, instancelimit)
+clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, settings.instancelimit)
 print('Found {} pairs'.format(pairs))
-appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, clusters, alpha, beta)
+appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, clusters, settings.alpha, settings.beta)
 
 # create appliance wise disaggregated series
 power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
 
 # label the disaggregated appliance clusters by comparing with signature DB
-labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
+if not disagg_only:
+    labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
 
 # Attach timestamps to generated series
 power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
@@ -91,19 +85,26 @@ power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
 # create pandas dataframe of all series
 gsp_result = pd.concat(power_timeseries, axis=1)
 
-labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
-#labels = [i[1] for i in list(labeled_appliances.items())]
-print(labeled_appliances)
-print(labels)
-print(gsp_result.columns)
+if disagg_only:
+    labels = ['None' for i in range(len(gsp_result.columns))]
+else:
+    labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
+
 gsp_result.columns = labels
 fig, axs = plt.subplots(3, 1, sharex=True)
 axs[0].plot(demo_file)
 axs[0].set_title("Aggregated power of house 2 from April 23th to 30th 2011, downsampled to 1 minute", size=8)
-axs[1].stackplot(demo_file_truth.index, demo_file_truth.values.T, labels=list(demo_file_truth.columns.values))
+
+for i in range(demo_file_truth.values.shape[1]):
+    axs[1].plot(demo_file_truth.index, demo_file_truth.values.T[i], label=demo_file_truth.columns.values[i])
+#axs[1].stackplot(demo_file_truth.index, demo_file_truth.values.T, labels=list(demo_file_truth.columns.values))
 axs[1].set_title("Disaggregated appliance power [Ground Truth]", size=8)
 axs[1].legend(loc='upper left', fontsize=6)
-axs[2].stackplot(gsp_result.index, gsp_result.values.T, labels=labels)
+
+for i in range(gsp_result.values.shape[1]):
+    axs[2].plot(gsp_result.index, gsp_result.values.T[i], label=gsp_result.columns.values[i])
+
+#axs[2].stackplot(gsp_result.index, gsp_result.values.T, labels=labels)
 axs[2].set_title("Disaggregated appliance [Results]", size=8)
 axs[2].legend(loc='upper left', fontsize=6)
 plt.show()
@@ -112,7 +113,7 @@ exit()
 current_frame = 0
 event_offset = len(initial_events)
 hist_delta_power= initial_delta_power
-total_frames = int((len(data_vec) - init_size) / frame_size)
+total_frames = int((len(data_vec) - settings.init_size) / frame_size)
 while current_time < len(data_vec):
     #fig, axs = plt.subplots(3, 1, sharex=True)
     #axs[0].plot(demo_file)
@@ -128,7 +129,7 @@ while current_time < len(data_vec):
     frame_delta_power = [round(frame_data[i + 1] - frame_data[i], 2) for i in range(0, len(frame_data) - 1)]
 
     #Members of frame_events are indicies
-    frame_events = [i + event_offset for i in range(0, len(frame_delta_power)) if (frame_delta_power[i] > T_Positive or frame_delta_power[i] < T_Negative) ]
+    frame_events = [i + event_offset for i in range(0, len(frame_delta_power)) if (frame_delta_power[i] > settings.T_Positive or frame_delta_power[i] < settings.T_Negative) ]
     #Prepare frames and events
     print('\tAdding {} events. Have {} existing clusters'.format(len(frame_events), len(clusters)))
     preevents = sum([len(c) for c in clusters])
@@ -136,18 +137,19 @@ while current_time < len(data_vec):
     hist_delta_power += frame_delta_power
 
     #Create/extend clusters
-    clusters = gsp.extend_refined_clustering_block(clusters, frame_events, hist_delta_power, sigma, ri)
+    clusters = gsp.extend_refined_clustering_block(clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
 
     #Shrink clusters so equal positive/negative
-    #clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, instancelimit)
-    clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, instancelimit)
-    appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, clusters, alpha, beta)
+    #clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
+    clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, settings.instancelimit)
+    appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, clusters, settings.alpha, settings.beta)
 
 # create appliance wise disaggregated series
     power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
 
 # label the disaggregated appliance clusters by comparing with signature DB
-    labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
+    #if not disagg_only:
+    #    labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
 
 # Attach timestamps to generated series
     power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
@@ -155,11 +157,12 @@ while current_time < len(data_vec):
 # create pandas dataframe of all series
     gsp_result = pd.concat(power_timeseries, axis=1)
 
-    labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
+    if disagg_only:
+        labels = ['None' for i in range(len(gsp_result.columns))]
+    else:
+        labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
+
     #labels = [i[1] for i in list(labeled_appliances.items())]
-    print(labeled_appliances)
-    print(labels)
-    print(gsp_result.columns)
     gsp_result.columns = labels
 
     #Feature matching
@@ -188,8 +191,8 @@ while current_time < len(data_vec):
 #axs[2].set_title("Disaggregated appliance [Results]", size=8)
 #axs[2].legend(loc='upper left', fontsize=6)
 #plt.show()
-#finalclusters, pairs = gsp.pair_clusters_appliance_wise(clusters, data_vec, delta_power, instancelimit)
-#appliance_pairs = gsp.feature_matching_module(pairs, delta_power, finalclusters, alpha, beta)
+#finalclusters, pairs = gsp.pair_clusters_appliance_wise(clusters, data_vec, delta_power, settings.instancelimit)
+#appliance_pairs = gsp.feature_matching_module(pairs, delta_power, finalclusters, settings.alpha, settings.beta)
 #
 ## create appliance wise disaggregated series
 #power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, delta_power)

@@ -40,7 +40,9 @@ axs[0].legend(loc='upper left', fontsize=6)
 #axs[2].set_title('Disaggregated appliance power [Ours]', size=8)
 #axs[2].legend(loc='upper left', fontsize=6)
 
-axs[1].stackplot(dfd_ours.index, dfd_ours.values.T, labels=list(dfd_ours.columns.values))
+for i in range(dfd_ours.values.shape[1]):
+    axs[1].plot(dfd_ours.index, dfd_ours.values.T[i], label=dfd_ours.columns.values[i])
+#axs[1].stackplot(dfd_ours.index, dfd_ours.values.T, labels=list(dfd_ours.columns.values), baseline='zero')
 axs[1].set_title('Disaggregated appliance power [Ours]', size=8)
 axs[1].legend(loc='upper left', fontsize=6)
 

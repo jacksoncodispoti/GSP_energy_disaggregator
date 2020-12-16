@@ -23,7 +23,6 @@ def get_disagg_settings(house_num):
     #Overwrite master dict with indiv settings
     master_settings.update(indiv_settings)
 
-    print(master_settings)
     return DisaggSettings(**master_settings)
 
 def get_dataset_settings(house_num):
@@ -42,7 +41,6 @@ def get_dataset_settings(house_num):
 
     #Overwrite master dict with indiv settings
     master_settings.update(indiv_settings)
-    print(master_settings)
 
     return DatasetSettings(**master_settings)
 
@@ -61,9 +59,11 @@ class DisaggSettings:
         self.frame_size = int(frame_size)
 
 class DatasetSettings:
-    def __init__(self, start_time, end_time, channel_mask, sort_order):
+    def __init__(self, start_time, end_time, threshold, channel_mask, sort_order):
         self.start_time = start_time
         self.end_time = end_time
+
+        self.threshold = int(threshold)
 
         if isinstance(channel_mask, list):
             self.channel_mask = channel_mask
