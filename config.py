@@ -54,17 +54,18 @@ class DisaggSettings:
         self.T_Negative = float(t_negative)
         self.alpha = float(alpha)
         self.beta = float(beta)
-        self.instancelimit = int(instancelimit)
+        self.instancelimit = float(instancelimit)
         self.init_size = int(init_size)
         self.frame_size = int(frame_size)
 
 class DatasetSettings:
-    def __init__(self, start_time, end_time, threshold, channel_mask, sort_order):
+    def __init__(self, start_time, end_time, threshold, frame_size, channel_mask, sort_order):
         self.start_time = start_time
         self.end_time = end_time
 
         self.threshold = int(threshold)
 
+        self.frame_size = int(frame_size)
         if isinstance(channel_mask, list):
             self.channel_mask = channel_mask
         else:

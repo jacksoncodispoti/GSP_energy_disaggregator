@@ -98,7 +98,8 @@ else:
     disagg.to_csv(disaggr_name, columns=columns)
 
 
-response = disagg.resample('1H').max().ge(settings.threshold)
+response = disagg.resample('{}T'.format(settings.frame_size)).max().ge(settings.threshold)
+#response = disagg.resample('1H').max().ge(settings.threshold)
 
 print('\tWriting response')
 if settings.start_time:
