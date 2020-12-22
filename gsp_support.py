@@ -218,7 +218,7 @@ def feature_matching_module(pairs,DelP,Newcluster,alpha,beta):
 #%%
 def generate_appliance_powerseries(appliance_pairs,DelP):
     ''' generates full power series of appliances'''
-    print ("3 of 6> generates full power series of appliances")
+    print ("\t3 of 6> generates full power series of appliances")
     appliance_signatures = OrderedDict()
     power_series = OrderedDict()
     ctlf = OrderedDict()
@@ -250,7 +250,7 @@ def generate_appliance_powerseries(appliance_pairs,DelP):
 
 #%%
 def label_appliances(appliance_signatures, signature_database, threshold):
-    print ("4 of 6> checking appliance power signatures matches")
+    print ("\t4 of 6> checking appliance power signatures matches")
     labeled_appliances = OrderedDict()
     dfw = pd.concat(appliance_signatures, axis = 1, ignore_index=True)
     dfw.drop(dfw.index[1], axis=1)
@@ -365,7 +365,7 @@ def interpolate_values(A):
 #%%
 def create_appliance_timeseries(power_series,main_ind):
     '''This converts ordinary number indexed power series into time indexed power series'''
-    print ("5 of 6> creating appliance power timeseries")
+    print ("\t5 of 6> creating appliance power timeseries")
     result = OrderedDict()
     for i in range(len(power_series)):
         temp = power_series[i]
@@ -585,7 +585,7 @@ def find_closest_pair(cluster_means,cluster_group):
 
 #%%
 def pair_clusters_appliance_wise(Finalcluster, data_vec, delta_p, instancelimit):
-    print ("2 of 6> pair clusters appliance wise")
+    print ("\t2 of 6> pair clusters appliance wise")
     #% Here I count number of members of each cluster, their mean and standard deviation and store such stats in Table_1. Next, I sort 'Finalcluster' according to cluster means in decreasing order.
     Table_1 =  np.zeros((len(Finalcluster),4))
     for i in range(len(Finalcluster)):

@@ -130,13 +130,13 @@ while current_time < len(data_vec):
 
     #Create/extend clusters
     #clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
-    #clusters = gsp.extend_refined_clustering_block(clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
+    clusters = gsp.extend_refined_clustering_block(clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
 
     #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
     #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
 
     #Shrink clusters so equal positive/negative
-    #clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
+#    clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
 
     #Handle frame stuff
     result_edges = sum([len(c) for c in clusters])
@@ -173,9 +173,9 @@ while current_time < len(data_vec):
 #    axs[2].legend(loc='upper left', fontsize=6)
 #    plt.show()
 
-np.savetxt('r_events.txt', np.array(hist_events).astype(int), fmt='%i')
-print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
-clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
+#np.savetxt('r_events.txt', np.array(hist_events).astype(int), fmt='%i')
+#print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
+#clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
 print('\tEnding at {}'.format(current_time))
 gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
 gsp_v.graph(demo_file, demo_file_truth, gsp_results)
