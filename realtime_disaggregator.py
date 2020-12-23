@@ -17,6 +17,7 @@ import gsp_visualize as gsp_v
 import matplotlib.pyplot as plt
 import sys
 from config import get_disagg_settings, DisaggSettings
+from identifier import Identifier
 
 disagg_only = True
 
@@ -38,12 +39,14 @@ def aggregate_results(clusters, data_vec, hist_delta_power, settings):
     gsp_result = pd.concat(power_timeseries, axis=1)
 
     if disagg_only:
-        labels = ['None' for i in range(len(gsp_result.columns))]
+        labels = ['appliance_{}'.format(i) for i in range(len(gsp_result.columns))]
     else:
         labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
 
     #labels = [i[1] for i in list(labeled_appliances.items())]
     gsp_result.columns = labels
+    #We don't want it for all days when we only processed half
+    gsp_result = gsp_result.iloc[0:len(hist_delta_power)]
 
     return gsp_result
 
@@ -58,7 +61,9 @@ settings = get_disagg_settings(house_num)
 print("\t1 of 6> reading data")
 csvfileaggr = 'dataset/house_{}/output_aggr.csv'.format(house_num)
 csvfiledisaggr = 'dataset/house_{}/output_disaggr.csv'.format(house_num)
-csvrfileresponse = 'dataset/house_{}/output_response.csv'.format(house_num)
+csvfileresponse = 'dataset/house_{}/output_response.csv'.format(house_num)
+
+identifier = Identifier(settings.T_Positive, csvfileresponse)
 
 demo_file = pd.read_csv(csvfileaggr, index_col="Time")
 demo_file.index = pd.to_datetime(demo_file.index)
@@ -89,23 +94,7 @@ current_time += settings.init_size
 hist_delta_power= initial_delta_power
 clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, settings.instancelimit)
 print('Found {} pairs'.format(pairs))
-#appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, clusters, settings.alpha, settings.beta)
 
-# create appliance wise disaggregated series
-#power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
-
-# label the disaggregated appliance clusters by comparing with signature DB
-#if not disagg_only:
-    #labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
-
-# Attach timestamps to generated series
-#power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
-
-# create pandas dataframe of all series
-#gsp_result = pd.concat(power_timeseries, axis=1)
-
-
-#exit()
 #Traverse through the data each frame at a time
 current_frame = 0
 event_offset = len(initial_events)
@@ -119,10 +108,11 @@ while current_time < len(data_vec):
     frame_data = data_vec[current_time - 1 : current_time + settings.frame_size] #This works at end case
     frame_delta_power = [round(frame_data[i + 1] - frame_data[i], 2) for i in range(0, len(frame_data) - 1)]
 
+    print('\tDisaggregating appliances')
     #Members of frame_events are indicies
     frame_events = [i + current_time - 1 for i in range(0, len(frame_delta_power)) if (frame_delta_power[i] > settings.T_Positive or frame_delta_power[i] < settings.T_Negative) ]
     #Prepare frames and events
-    print('\tAdding {} events. Have {} existing clusters'.format(len(frame_events), len(clusters)))
+    print('\t\tAdding {} events. Have {} existing clusters'.format(len(frame_events), len(clusters)))
     preevents = sum([len(c) for c in clusters])
     expected_edges = preevents + len(frame_events)
     hist_delta_power += frame_delta_power
@@ -138,40 +128,22 @@ while current_time < len(data_vec):
     #Shrink clusters so equal positive/negative
 #    clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
 
+    #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
+    #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
+    #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
+    #exit()
+
     #Handle frame stuff
     result_edges = sum([len(c) for c in clusters])
     p_clusters = sum([1 for c in clusters if hist_delta_power[c[0]] > 0])
     n_clusters = sum([1 for c in clusters if hist_delta_power[c[0]] < 0])
 
-    print('\tExpected {} to {} events, got {}'.format(preevents, expected_edges, result_edges))
-    print('\tEnding with {} = {}[+] + {}[-]'.format(len(clusters), p_clusters, n_clusters))
+    print('\t\tExpected {} to {} events, got {}'.format(preevents, expected_edges, result_edges))
+    print('\t\tEnding with {} = {}[+] + {}[-]'.format(len(clusters), p_clusters, n_clusters))
 
     event_offset += len(frame_events)
     current_frame += 1
     current_time += settings.frame_size
-
-#    if disagg_only:
-#        labels = ['None' for i in range(len(gsp_result.columns))]
-#    else:
-#        labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
-#
-#    gsp_result.columns = labels
-#    fig, axs = plt.subplots(3, 1, sharex=True)
-#    axs[0].plot(demo_file)
-#    axs[0].set_title("Aggregated power of house 2 from April 23th to 30th 2011, downsampled to 1 minute", size=8)
-#
-#    for i in range(demo_file_truth.values.shape[1]):
-#        axs[1].plot(demo_file_truth.index, demo_file_truth.values.T[i], label=demo_file_truth.columns.values[i])
-##axs[1].stackplot(demo_file_truth.index, demo_file_truth.values.T, labels=list(demo_file_truth.columns.values))
-#    axs[1].set_title("Disaggregated appliance power [Ground Truth]", size=8)
-#    axs[1].legend(loc='upper left', fontsize=6)
-#
-#    for i in range(gsp_result.values.shape[1]):
-#        axs[2].plot(gsp_result.index, gsp_result.values.T[i], label=gsp_result.columns.values[i])
-##axs[2].stackplot(gsp_result.index, gsp_result.values.T, labels=labels)
-#    axs[2].set_title("Disaggregated appliance [Results]", size=8)
-#    axs[2].legend(loc='upper left', fontsize=6)
-#    plt.show()
 
 #np.savetxt('r_events.txt', np.array(hist_events).astype(int), fmt='%i')
 #print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
