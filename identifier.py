@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy.ma as ma
+import numpy as np
 
 class Identifier:
     def __init__(self, threshold, response_file):
@@ -21,14 +23,40 @@ class Identifier:
         usr_appliances = usr_response.sum()
         gsp_appliances = list(zip(gsp_appliances.keys(), gsp_appliances.values))
         usr_appliances = list(zip(usr_appliances.keys(), usr_appliances.values))
+
         gsp_appliances.sort(key=lambda x:-x[1])
         usr_appliances.sort(key=lambda x:-x[1])
 
-        #print(gsp_appliances)
-        #print(usr_appliances)
+        diff_matrix = ma.zeros((len(usr_appliances), len(gsp_appliances)))
+        diff_matrix.mask = np.zeros(diff_matrix.shape)
+
+        for i, (usr_key, usr_val) in enumerate(usr_appliances):
+            for j, (gsp_key, gsp_val) in enumerate(gsp_appliances):
+                diff_matrix[i][j] = abs((gsp_val - usr_val) / gsp_val)
+
+        print(gsp_appliances)
+        print(usr_appliances)
+#        print(diff_matrix)
+        pairs = []
+        for i, (usr_key, usr_val) in enumerate(usr_appliances):
+            match = diff_matrix[i].argmin()
+            print('Looking to match {}[{}]'.format(usr_key, usr_val))
+            print([l[0] for l in gsp_appliances])
+            print(diff_matrix[i])
+            print('got match {} with {}'.format(match, i))
+            pairs.append([match, i])
+            new_mask = diff_matrix.mask.transpose()
+            new_mask[match] = np.ones(len(usr_appliances))
+            diff_matrix.mask = new_mask.transpose()
 
         #This is a partial implementation, we still gotta think of the weirder cases like
         #If there are more appliance_X than actual labels
+        labels = []
         print('\tIdentifying appliances')
-        for i in range(min(len(gsp_appliances), len(usr_appliances))):
-            print('\t\t{} is {}'.format(usr_appliances[i][0], gsp_appliances[i][0]))
+        for i, j in pairs:
+            labels.append((usr_appliances[i][0], gsp_appliances[i][0]))
+            print('\t\t[{} ~ {}]{} is {}'.format(usr_appliances[i][1], gsp_appliances[i][1], usr_appliances[i][0], gsp_appliances[i][0]))
+
+        labels.sort(key=lambda x:x[1])
+        labels = [label[0] for label in labels][:len(gsp_result.columns)]
+        gsp_result.columns = labels

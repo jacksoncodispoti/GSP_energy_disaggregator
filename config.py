@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 from collections import namedtuple
 
 conf_path = 'config.config'
@@ -7,10 +7,10 @@ conf_disagg = 'disaggregator'
 conf_dataset = 'dataset'
 
 def get_disagg_settings(house_num):
-    master_parser = ConfigParser.RawConfigParser()
+    master_parser = configparser.RawConfigParser()
     master_parser.read(conf_path)
 
-    indiv_parser = ConfigParser.RawConfigParser()
+    indiv_parser = configparser.RawConfigParser()
     indiv_parser.read('dataset/house_{}/{}'.format(house_num, conf_path))
 
     master_settings = { key : master_parser.get(conf_disagg, key) for key in master_parser.options(conf_disagg) }
@@ -26,10 +26,10 @@ def get_disagg_settings(house_num):
     return DisaggSettings(**master_settings)
 
 def get_dataset_settings(house_num):
-    master_parser = ConfigParser.RawConfigParser()
+    master_parser = configparser.Rawconfigparser()
     master_parser.read(conf_path)
 
-    indiv_parser = ConfigParser.RawConfigParser()
+    indiv_parser = configparser.Rawconfigparser()
     indiv_parser.read('house_{}/{}'.format(house_num, conf_path))
 
     master_settings = { key : master_parser.get(conf_dataset, key) for key in master_parser.options(conf_dataset) }

@@ -21,9 +21,25 @@ from identifier import Identifier
 
 disagg_only = True
 
+#If we do a naive clone like list(clusters), it still has 2nd level lists that are referencing
+#The same things
+def clone_clusters(clusters):
+    res = [[]]
+
+    for cluster in clusters:
+        for edge in cluster:
+            res[-1].append(edge)
+
+        res.append([])
+
+    return res
+
+#somehow, this function is modifying things it shouldn't be
 def aggregate_results(clusters, data_vec, hist_delta_power, settings):
-    finalclusters, pairs = gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, settings.instancelimit)
-    appliance_pairs = gsp.feature_matching_module(pairs, hist_delta_power, finalclusters, settings.alpha, settings.beta)
+    #We need to clone it so that the underlying 'algorithms' don't change our existing clusters
+    agg_clusters = clone_clusters(clusters)
+    finalclusters, a_pairs = gsp.pair_clusters_appliance_wise(agg_clusters, data_vec, hist_delta_power, settings.instancelimit)
+    appliance_pairs = gsp.feature_matching_module(a_pairs, hist_delta_power, finalclusters, settings.alpha, settings.beta)
 
 # create appliance wise disaggregated series
     power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
@@ -87,12 +103,12 @@ current_time = 0
 initial_data = data_vec[current_time : current_time + settings.init_size]
 initial_delta_power = [round(initial_data[i + 1] - initial_data[i], 2) for i in range(len(initial_data) - 1)]
 initial_events = [i for i in range(len(initial_delta_power)) if (initial_delta_power[i] > settings.T_Positive or initial_delta_power[i] < settings.T_Negative) ]
-clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
-print('Expected {} got {}'.format(len(initial_events), sum([len(c) for c in clusters])))
+trial_clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
+print('Expected {} got {}'.format(len(initial_events), sum([len(c) for c in trial_clusters])))
 current_time += settings.init_size
 
 hist_delta_power= initial_delta_power
-clusters, pairs =  gsp.pair_clusters_appliance_wise(clusters, data_vec, hist_delta_power, settings.instancelimit)
+trial_clusters, pairs =  gsp.pair_clusters_appliance_wise(trial_clusters, data_vec, hist_delta_power, settings.instancelimit)
 print('Found {} pairs'.format(pairs))
 
 #Traverse through the data each frame at a time
@@ -112,34 +128,35 @@ while current_time < len(data_vec):
     #Members of frame_events are indicies
     frame_events = [i + current_time - 1 for i in range(0, len(frame_delta_power)) if (frame_delta_power[i] > settings.T_Positive or frame_delta_power[i] < settings.T_Negative) ]
     #Prepare frames and events
-    print('\t\tAdding {} events. Have {} existing clusters'.format(len(frame_events), len(clusters)))
-    preevents = sum([len(c) for c in clusters])
+    print('\t\tAdding {} events. Have {} existing clusters'.format(len(frame_events), len(trial_clusters)))
+    preevents = sum([len(c) for c in trial_clusters])
     expected_edges = preevents + len(frame_events)
     hist_delta_power += frame_delta_power
     hist_events += frame_events
 
     #Create/extend clusters
     #clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
-    clusters = gsp.extend_refined_clustering_block(clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
+    trial_clusters = gsp.extend_refined_clustering_block(trial_clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
 
-    #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
-    #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
+    #The line below modifies the results somehow which screws everything up
+    gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
+    identifier.process_frame(current_frame, settings.frame_size, gsp_results)
+    gsp_v.graph(demo_file, demo_file_truth, gsp_results)
 
     #Shrink clusters so equal positive/negative
 #    clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
 
     #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
-    #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
     #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
     #exit()
 
     #Handle frame stuff
-    result_edges = sum([len(c) for c in clusters])
-    p_clusters = sum([1 for c in clusters if hist_delta_power[c[0]] > 0])
-    n_clusters = sum([1 for c in clusters if hist_delta_power[c[0]] < 0])
+    result_edges = sum([len(c) for c in trial_clusters])
+    p_clusters = sum([1 for c in trial_clusters if hist_delta_power[c[0]] > 0])
+    n_clusters = sum([1 for c in trial_clusters if hist_delta_power[c[0]] < 0])
 
     print('\t\tExpected {} to {} events, got {}'.format(preevents, expected_edges, result_edges))
-    print('\t\tEnding with {} = {}[+] + {}[-]'.format(len(clusters), p_clusters, n_clusters))
+    print('\t\tEnding with {} = {}[+] + {}[-]'.format(len(trial_clusters), p_clusters, n_clusters))
 
     event_offset += len(frame_events)
     current_frame += 1
@@ -149,5 +166,6 @@ while current_time < len(data_vec):
 #print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
 #clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
 print('\tEnding at {}'.format(current_time))
-gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
+gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
+identifier.process_frame(current_frame, settings.frame_size, gsp_results)
 gsp_v.graph(demo_file, demo_file_truth, gsp_results)
