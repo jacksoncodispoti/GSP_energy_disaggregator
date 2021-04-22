@@ -8,25 +8,21 @@ Created on Fri Feb  2 12:09:27 2018
 """
 
 from __future__ import division
+import os
+from collections import OrderedDict, defaultdict
+from copy import deepcopy
+import math
 import numpy as np
 import pandas as pd
-from collections import OrderedDict
-from copy import deepcopy
-from collections import defaultdict
 from scipy.stats import norm
-import math
 import matplotlib.pyplot as plt
-import csv
-from IPython.display import display
-from math import sqrt
-import os
 
 #%%
 def calc_adj_matrix(size, r, sigma):
     Am = np.zeros((size, size))
     for i in range(0, size):
         for j in range(0, size):
-            Am[i,j] = math.exp(-((r[i] - r[j]) / sigma) ** 2);
+            Am[i,j] = math.exp(-((r[i] - r[j]) / sigma) ** 2)
             #if np.isnan(Am[i,j]):
             #    print('Problem with {}@{} {}@{} in size {}, sigma {}'.format(r[i], i, r[j], j, len(r), sigma))
              #Gaussian kernel weighting function
@@ -40,6 +36,13 @@ def calc_deg_matrix(size, Am):
 
     return Dm
 
+def calc_laplace_matrix(length, r, sigma):
+    Am = calc_adj_matrix(length, r, sigma)
+    Dm = calc_deg_matrix(length, Am)
+    Lm = Dm - Am
+
+    return Lm
+
 def gspclustering_extend_event2(cluster, event, delta_p, sigma):
     '''Cluster events around the first cluster, return first cluster with added events'''
     winL = 1000 # this define  number of observations in a window, the algorthm works in a sliding window manner
@@ -49,14 +52,15 @@ def gspclustering_extend_event2(cluster, event, delta_p, sigma):
         event_1 = event[k * winL : ((k + 1) * winL)]
 # followed as such from the MATLAB code
         r.append(delta_p[cluster[0]])
-        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+
+        for e in event_1:
+            r.append(delta_p[e])
+
         templen = winL + 1
         Sm = np.zeros((templen, 1))
-        Sm[0] = 1;
+        Sm[0] = 1
 
-        Am = calc_adj_matrix(templen, r, sigma) #Calc adj
-        Dm = calc_deg_matrix(templen, Am) #Calc degree
-        Lm = Dm - Am #Calc Laplacian
+        Lm = calc_laplace_matrix(templen, r, sigma)
 
         print(templen)
         Smstar[k * winL : (k + 1) * winL] = np.matmul(np.linalg.pinv(Lm[1 : templen, 1 : templen]), ((-Sm[0].T) * Lm[0, 1 : templen]).reshape(-1, 1));
@@ -66,13 +70,14 @@ def gspclustering_extend_event2(cluster, event, delta_p, sigma):
         event_1 =  event[int(np.floor(len(event) / winL)) * winL :]
         newlen = len(event_1) + 1
         r.append(delta_p[cluster[0]])
-        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
-        Sm = np.zeros((newlen, 1))
-        Sm[0] = 1;
 
-        Am = calc_adj_matrix(newlen, r, sigma)
-        Dm = calc_deg_matrix(newlen, Am)
-        Lm = Dm - Am;
+        for e in event_1:
+            r.append(delta_p[e])
+
+        Sm = np.zeros((newlen, 1))
+        Sm[0] = 1
+
+        Lm = calc_laplace_matrix(newlen, r, sigma)
 
         Smstar_temp = np.matmul(np.linalg.pinv(Lm[1 : newlen, 1 : newlen]), ((-Sm[0].T) * Lm[0, 1 : newlen]).reshape(-1, 1));
         Smstar[(int(np.floor(len(event) / winL)) * winL) : len(event)] = Smstar_temp
@@ -88,7 +93,10 @@ def gspclustering_event2(event, delta_p, sigma):
         event_1 = event[k * winL : ((k + 1) * winL)]
 # followed as such from the MATLAB code
         r.append(delta_p[event[0]])
-        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+
+        for e in event_1:
+            r.append(delta_p[e])
+
         templen = winL + 1
         Sm = np.zeros((templen, 1))
         Sm[0] = 1;
@@ -105,7 +113,10 @@ def gspclustering_event2(event, delta_p, sigma):
         event_1 =  event[int(np.floor(len(event) / winL)) * winL :]
         newlen = len(event_1) + 1
         r.append(delta_p[event[0]])
-        [r.append(delta_p[event_1[i]]) for i in range(0, len(event_1))]
+
+        for e in event_1:
+            r.append(delta_p[e])
+
         Sm = np.zeros((newlen, 1))
         Sm[0] = 1;
 
@@ -135,7 +146,6 @@ def johntable(clusters, precluster, delta_p, ri):
 #%%
 def find_new_events(clusters,delta_p,ri):
   ''' This differs from johntable function in line containing divison statement'''
-  import math
   newevents = []
   for h in range(0,len(clusters)):
     stds = np.std([delta_p[i] for i in clusters[h]],ddof=1)
