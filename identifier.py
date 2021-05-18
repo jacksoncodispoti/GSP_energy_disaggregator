@@ -59,4 +59,6 @@ class Identifier:
 
         labels.sort(key=lambda x:x[1])
         labels = [label[0] for label in labels][:len(gsp_result.columns)]
+        for i in range(len(labels), len(gsp_result.columns)):
+            labels.append(None)
         gsp_result.columns = labels

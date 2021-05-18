@@ -45,8 +45,8 @@ def aggregate_results(clusters, data_vec, hist_delta_power, settings):
     power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
 
 # label the disaggregated appliance clusters by comparing with signature DB
-    #if not disagg_only:
-    #    labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
+    if not disagg_only:
+        labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
 
 # Attach timestamps to generated series
     power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
@@ -101,7 +101,7 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 #Create the initial clusters from the 1st bit of data
 current_time = 0
 initial_data = data_vec[current_time : current_time + settings.init_size]
-initial_delta_power = [round(initial_data[i + 1] - initial_data[i], 2) for i in range(len(initial_data) - 1)]
+initial_delta_power = [np.round(initial_data[i + 1] - initial_data[i], 2) for i in range(len(initial_data) - 1)]
 initial_events = [i for i in range(len(initial_delta_power)) if (initial_delta_power[i] > settings.T_Positive or initial_delta_power[i] < settings.T_Negative) ]
 trial_clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
 print('Expected {} got {}'.format(len(initial_events), sum([len(c) for c in trial_clusters])))
@@ -122,7 +122,7 @@ while current_time < len(data_vec):
     #The -1 is so that we have the difference from the end of the last frame
     #Otherwise, we will drop events accidentally
     frame_data = data_vec[current_time - 1 : current_time + settings.frame_size] #This works at end case
-    frame_delta_power = [round(frame_data[i + 1] - frame_data[i], 2) for i in range(0, len(frame_data) - 1)]
+    frame_delta_power = [np.round(frame_data[i + 1] - frame_data[i], 2) for i in range(0, len(frame_data) - 1)]
 
     print('\tDisaggregating appliances')
     #Members of frame_events are indicies
