@@ -99,11 +99,22 @@ signature_database = "signature_database_labelled.csv"
 threshold = 2000 # threshold of DTW algorithm used for appliance power signature matching
 
 #Create the initial clusters from the 1st bit of data
-current_time = 0
-initial_data = data_vec[current_time : current_time + settings.init_size]
-initial_delta_power = [np.round(initial_data[i + 1] - initial_data[i], 2) for i in range(len(initial_data) - 1)]
-initial_events = [i for i in range(len(initial_delta_power)) if (initial_delta_power[i] > settings.T_Positive or initial_delta_power[i] < settings.T_Negative) ]
-trial_clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
+extra_amount = 0
+
+while True:
+    current_time = 0
+    initial_data = data_vec[current_time : current_time + settings.init_size - extra_amount]
+    initial_delta_power = [np.round(initial_data[i + 1] - initial_data[i], 2) for i in range(len(initial_data) - 1)]
+    initial_events = [i for i in range(len(initial_delta_power)) if (initial_delta_power[i] > settings.T_Positive or initial_delta_power[i] < settings.T_Negative) ]
+
+    try:
+        trial_clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
+        break
+    except np.linalg.LinAlgError:
+        extra_amount += 1
+        print("SVD didn't converge, retrying with {} less data".format(extra_amount))
+        continue
+
 print('Expected {} got {}'.format(len(initial_events), sum([len(c) for c in trial_clusters])))
 current_time += settings.init_size
 
