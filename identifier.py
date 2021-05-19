@@ -13,11 +13,6 @@ class Identifier:
         gsp_response = (gsp_response.resample('{}T'.format(frame_size)).sum() / 4)
 
         usr_response = self.responses.iloc[0 : len(gsp_response)]
-        #print(gsp_response)
-        #print(usr_response)
-        #print('==========')
-        #print(gsp_response.sum())
-        #print(usr_response.sum())
 
         gsp_appliances = gsp_response.sum()
         usr_appliances = usr_response.sum()
@@ -34,16 +29,10 @@ class Identifier:
             for j, (gsp_key, gsp_val) in enumerate(gsp_appliances):
                 diff_matrix[i][j] = abs((gsp_val - usr_val) / gsp_val)
 
-        print(gsp_appliances)
-        print(usr_appliances)
-#        print(diff_matrix)
         pairs = []
         for i, (usr_key, usr_val) in enumerate(usr_appliances):
             match = diff_matrix[i].argmin()
             print('Looking to match {}[{}]'.format(usr_key, usr_val))
-            print([l[0] for l in gsp_appliances])
-            print(diff_matrix[i])
-            print('got match {} with {}'.format(match, i))
             pairs.append([match, i])
             new_mask = diff_matrix.mask.transpose()
             new_mask[match] = np.ones(len(usr_appliances))
@@ -53,10 +42,7 @@ class Identifier:
         #If there are more appliance_X than actual labels
         labels = []
         print('\tIdentifying appliances')
-        print(len(usr_appliances))
-        print(len(gsp_appliances))
         for i, j in pairs:
-            print('({} {}'.format(i, j))
             labels.append((usr_appliances[j][0], gsp_appliances[i][0]))
             print('\t\t[{} ~ {}]{} is {}'.format(usr_appliances[j][1], gsp_appliances[i][1], usr_appliances[j][0], gsp_appliances[i][0]))
 

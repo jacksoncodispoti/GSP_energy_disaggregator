@@ -7,7 +7,20 @@ import gsp_support as gsp
 import matplotlib.pyplot as plt
 import sys
 
-def graph(demo_file, demo_file_truth, gsp_result):
+def graph(demo_file, demo_file_truth):
+    fig, axs = plt.subplots(2, 1, sharex=True)
+    axs[0].plot(demo_file)
+    axs[0].set_title("Aggregated power of house 2 from April 23th to 30th 2011, downsampled to 1 minute", size=8)
+
+    for i in range(demo_file_truth.values.shape[1]):
+        axs[1].plot(demo_file_truth.index, demo_file_truth.values.T[i], label=demo_file_truth.columns.values[i])
+#axs[1].stackplot(demo_file_truth.index, demo_file_truth.values.T, labels=list(demo_file_truth.columns.values))
+    axs[1].set_title("Disaggregated appliance power [Ground Truth]", size=8)
+    axs[1].legend(loc='upper left', fontsize=6)
+
+    plt.show()
+
+def graph_all(demo_file, demo_file_truth, gsp_result):
     fig, axs = plt.subplots(3, 1, sharex=True)
     axs[0].plot(demo_file)
     axs[0].set_title("Aggregated power of house 2 from April 23th to 30th 2011, downsampled to 1 minute", size=8)

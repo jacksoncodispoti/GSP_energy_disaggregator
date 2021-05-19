@@ -109,6 +109,8 @@ while True:
 
     try:
         trial_clusters = gsp.refined_clustering_block(initial_events, initial_delta_power, settings.sigma, settings.ri)
+        print('There were {} initial events, {} power'.format(len(initial_events), len(initial_delta_power)))
+        print('Trial clusters are {}'.format(trial_clusters))
         break
     except np.linalg.LinAlgError:
         extra_amount += 1
@@ -128,13 +130,11 @@ event_offset = len(initial_events)
 hist_events = initial_events
 hist_delta_power= initial_delta_power
 total_frames = int((len(data_vec) - settings.init_size) / settings.frame_size)
-fd = current_time
 while current_time < len(data_vec):
     print('Processing frame {} of {} from times {} to {}'.format(current_frame, total_frames, current_time, current_time + settings.frame_size))
     #The -1 is so that we have the difference from the end of the last frame
     #Otherwise, we will drop events accidentally
     frame_data = data_vec[current_time - 1 : current_time + settings.frame_size] #This works at end case
-    fd += len(frame_data)
     frame_delta_power = [np.round(frame_data[i + 1] - frame_data[i], 2) for i in range(0, len(frame_data) - 1)]
 
     print('\tDisaggregating appliances')
@@ -162,7 +162,7 @@ while current_time < len(data_vec):
 #    clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
 
     #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
-    #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
+    gsp_v.graph_all(demo_file, demo_file_truth, gsp_results)
     #exit()
 
     #Handle frame stuff
@@ -183,4 +183,4 @@ while current_time < len(data_vec):
 print('\tEnding at {}'.format(current_time))
 gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
 identifier.process_frame(current_frame, settings.frame_size, gsp_results)
-gsp_v.graph(demo_file, demo_file_truth, gsp_results)
+gsp_v.graph_all(demo_file, demo_file_truth, gsp_results)
