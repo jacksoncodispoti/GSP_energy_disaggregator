@@ -68,7 +68,8 @@ def aggregate_results(clusters, data_vec, hist_delta_power, settings):
 
 if len(sys.argv) < 2:
     print('Usage: python realtime_disaggregator.py [house_num]')
-    exit()
+    print('This program is for disaggregating the aggregate power readings for specified house')
+    sys.exit()
 
 print("Loading settings")
 house_num = sys.argv[1]
