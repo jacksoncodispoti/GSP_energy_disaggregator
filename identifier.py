@@ -53,9 +53,12 @@ class Identifier:
         #If there are more appliance_X than actual labels
         labels = []
         print('\tIdentifying appliances')
+        print(len(usr_appliances))
+        print(len(gsp_appliances))
         for i, j in pairs:
-            labels.append((usr_appliances[i][0], gsp_appliances[i][0]))
-            print('\t\t[{} ~ {}]{} is {}'.format(usr_appliances[i][1], gsp_appliances[i][1], usr_appliances[i][0], gsp_appliances[i][0]))
+            print('({} {}'.format(i, j))
+            labels.append((usr_appliances[j][0], gsp_appliances[i][0]))
+            print('\t\t[{} ~ {}]{} is {}'.format(usr_appliances[j][1], gsp_appliances[i][1], usr_appliances[j][0], gsp_appliances[i][0]))
 
         labels.sort(key=lambda x:x[1])
         labels = [label[0] for label in labels][:len(gsp_result.columns)]

@@ -62,7 +62,6 @@ def gspclustering_extend_event2(cluster, event, delta_p, sigma):
 
         Lm = calc_laplace_matrix(templen, r, sigma)
 
-        print(templen)
         Smstar[k * winL : (k + 1) * winL] = np.matmul(np.linalg.pinv(Lm[1 : templen, 1 : templen]), ((-Sm[0].T) * Lm[0, 1 : templen]).reshape(-1, 1));
   # for remaining elements of the event list
     if (len(event) % winL > 0):
@@ -72,10 +71,16 @@ def gspclustering_extend_event2(cluster, event, delta_p, sigma):
         r.append(delta_p[cluster[0]])
 
         for e in event_1:
-            r.append(delta_p[e])
+            if e < len(delta_p):
+                r.append(delta_p[e])
+            else:
+                print("Length of delta p is {}".format(len(delta_p)))
+                print("MISSING {}".format(e))
 
         Sm = np.zeros((newlen, 1))
         Sm[0] = 1
+
+        newlen = len(r)
 
         Lm = calc_laplace_matrix(newlen, r, sigma)
 
