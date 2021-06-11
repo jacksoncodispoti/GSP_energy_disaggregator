@@ -300,7 +300,7 @@ def DTW(s1, s2):
             dist= (s1[i]-s2[j])**2
             DTW[(i, j)] = dist + min(DTW[(i-1, j)],DTW[(i, j-1)], DTW[(i-1, j-1)])
 
-    return sqrt(DTW[len(s1)-1, len(s2)-1])
+    return math.sqrt(DTW[len(s1)-1, len(s2)-1])
 
 #%%
 def FastDTW(s1, s2, w):
@@ -318,7 +318,7 @@ def FastDTW(s1, s2, w):
             dist= (s1[i]-s2[j])**2
             DTW[(i, j)] = dist + min(DTW[(i-1, j)],DTW[(i, j-1)], DTW[(i-1, j-1)])
 
-    return sqrt(DTW[len(s1)-1, len(s2)-1])
+    return math.sqrt(DTW[len(s1)-1, len(s2)-1])
 
 #%%
 def write_csv_df(path, filename, df):
