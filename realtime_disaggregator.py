@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import sys
 from config import get_disagg_settings, DisaggSettings
 from identifier import Identifier
+from matcher import Matcher
 
 disagg_only = True
 
@@ -81,6 +82,7 @@ csvfiledisaggr = 'dataset/house_{}/output_disaggr.csv'.format(house_num)
 csvfileresponse = 'dataset/house_{}/output_response.csv'.format(house_num)
 
 identifier = Identifier(settings.T_Positive, csvfileresponse)
+matcher = Matcher(5, 5, 2)
 
 demo_file = pd.read_csv(csvfileaggr, index_col="Time")
 demo_file.index = pd.to_datetime(demo_file.index)
@@ -102,6 +104,7 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 #Create the initial clusters from the 1st bit of data
 extra_amount = 0
 
+#Try to create a set of initial clusters, re-try until SVD divergence stops
 while True:
     current_time = 0
     initial_data = data_vec[current_time : current_time + settings.init_size - extra_amount]
@@ -131,6 +134,7 @@ event_offset = len(initial_events)
 hist_events = initial_events
 hist_delta_power= initial_delta_power
 total_frames = int((len(data_vec) - settings.init_size) / settings.frame_size)
+
 while current_time < len(data_vec):
     print('Processing frame {} of {} from times {} to {}'.format(current_frame, total_frames, current_time, current_time + settings.frame_size))
     #The -1 is so that we have the difference from the end of the last frame
@@ -157,6 +161,8 @@ while current_time < len(data_vec):
     #The line below modifies the results somehow which screws everything up
     gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
     identifier.process_frame(current_frame, settings.frame_size, gsp_results)
+    matcher.process_frame(current_frame, settings.frame_size, gsp_results)
+
     #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
 
     #Shrink clusters so equal positive/negative
