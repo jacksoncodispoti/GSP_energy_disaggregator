@@ -1,12 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""
-This implements GSP energy disaggregation method proposed in the paper
-On a training-less solution for non-intrusive appliance load monitoring using graph signal processing
-Created on Thu Feb  1 15:42:41 2018
-
-@author: haroonr
-"""
 from __future__ import division
 import warnings
 warnings.filterwarnings("ignore")
@@ -35,29 +27,26 @@ def clone_clusters(clusters):
 
     return res
 
-#somehow, this function is modifying things it shouldn't be
 def aggregate_results(clusters, data_vec, hist_delta_power, settings):
     #We need to clone it so that the underlying 'algorithms' don't change our existing clusters
     agg_clusters = clone_clusters(clusters)
     finalclusters, a_pairs = gsp.pair_clusters_appliance_wise(agg_clusters, data_vec, hist_delta_power, settings.instancelimit)
     appliance_pairs = gsp.feature_matching_module(a_pairs, hist_delta_power, finalclusters, settings.alpha, settings.beta)
 
-# create appliance wise disaggregated series
+    # create appliance wise disaggregated series
     power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, hist_delta_power)
 
-# label the disaggregated appliance clusters by comparing with signature DB
-    if not disagg_only:
-        labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
-
-# Attach timestamps to generated series
+    # Attach timestamps to generated series
     power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
 
-# create pandas dataframe of all series
+    # create pandas dataframe of all series
     gsp_result = pd.concat(power_timeseries, axis=1)
 
     if disagg_only:
         labels = ['appliance_{}'.format(i) for i in range(len(gsp_result.columns))]
     else:
+        # label the disaggregated appliance clusters by comparing with signature DB
+        labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
         labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
 
     #labels = [i[1] for i in list(labeled_appliances.items())]
@@ -81,9 +70,6 @@ csvfileaggr = 'dataset/house_{}/output_aggr.csv'.format(house_num)
 csvfiledisaggr = 'dataset/house_{}/output_disaggr.csv'.format(house_num)
 csvfileresponse = 'dataset/house_{}/output_response.csv'.format(house_num)
 
-identifier = Identifier(settings.T_Positive, csvfileresponse)
-matcher = Matcher(5, 5, 2)
-
 demo_file = pd.read_csv(csvfileaggr, index_col="Time")
 demo_file.index = pd.to_datetime(demo_file.index)
 demo_file_truth = pd.read_csv(csvfiledisaggr, index_col="Time")
@@ -103,6 +89,9 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 
 #Create the initial clusters from the 1st bit of data
 extra_amount = 0
+
+identifier = Identifier(settings.T_Positive, csvfileresponse)
+matcher = Matcher(5, [c for c in demo_file_truth.columns], ['refrigerator'], 2)
 
 #Try to create a set of initial clusters, re-try until SVD divergence stops
 while True:
@@ -160,8 +149,10 @@ while current_time < len(data_vec):
 
     #The line below modifies the results somehow which screws everything up
     gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
-    identifier.process_frame(current_frame, settings.frame_size, gsp_results)
-    matcher.process_frame(current_frame, settings.frame_size, gsp_results)
+    gsp_truth = demo_file_truth[0:len(gsp_results)]
+    #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
+    #matcher.process_frame(current_frame, settings.frame_size, gsp_results, gsp_truth)
+    matcher.process_frame(current_time, settings.frame_size, gsp_truth, gsp_truth)
 
     #gsp_v.graph(demo_file, demo_file_truth, gsp_results)
 
@@ -169,7 +160,7 @@ while current_time < len(data_vec):
 #    clusters = gsp.shrink_positive_negative(clusters, data_vec, hist_delta_power, settings.instancelimit)
 
     #gsp_results = aggregate_results(clusters, data_vec, hist_delta_power, settings)
-    gsp_v.graph_all(demo_file, demo_file_truth, gsp_results)
+    #gsp_v.graph_all(demo_file, demo_file_truth, gsp_results)
     #exit()
 
     #Handle frame stuff
@@ -184,6 +175,7 @@ while current_time < len(data_vec):
     current_frame += 1
     current_time += settings.frame_size
 
+matcher.final_matching()
 #np.savetxt('r_events.txt', np.array(hist_events).astype(int), fmt='%i')
 #print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
 #clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
