@@ -82,7 +82,7 @@ demo_file_truth.index = pd.to_datetime(demo_file_truth.index)
 mask = (demo_file.index > settings.start_time) & (demo_file.index < settings.end_time)
 demo_file = demo_file.loc[mask]
 mask = (demo_file_truth.index > settings.start_time) & (demo_file_truth.index < settings.end_time)
-demo_file_truth = demo_file_truth.loc[mask]
+demo_file_truth: DataFrame = demo_file_truth.loc[mask]
 
 main_val = demo_file.values # get only readings
 main_ind = demo_file.index  # get only timestamp
@@ -151,8 +151,8 @@ while current_time < len(data_vec):
     trial_clusters = gsp.extend_refined_clustering_block(trial_clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
 
     #The line below modifies the results somehow which screws everything up
-    gsp_results: DataFrame = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
-    gsp_truth: DataFrame = demo_file_truth[0:len(gsp_results)]
+    gsp_results: NDFrame = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
+    gsp_truth: NDFrame = demo_file_truth[0:len(gsp_results)]
     #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
     #matcher.process_frame(current_frame, settings.frame_size, gsp_results, gsp_truth)
     matcher.process_frame(current_time, settings.frame_size, gsp_truth, gsp_truth)
@@ -178,11 +178,13 @@ while current_time < len(data_vec):
     current_frame += 1
     current_time += settings.frame_size
 
-matcher.final_matching()
 #np.savetxt('r_events.txt', np.array(hist_events).astype(int), fmt='%i')
 #print('Clusters with {} {} {} {}'.format(len(hist_events), len(hist_delta_power), settings.sigma, settings.ri))
 #clusters = gsp.refined_clustering_block(hist_events, hist_delta_power, settings.sigma, settings.ri)
 print('\tEnding at {}'.format(current_time))
-gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
-identifier.process_frame(current_frame, settings.frame_size, gsp_results)
+#gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
+gsp_results = matcher.final_matching(gsp_truth)
+#gsp_results = matcher.final_matching()
+
+#identifier.process_frame(current_frame, settings.frame_size, gsp_results)
 gsp_v.graph_all(demo_file, demo_file_truth, gsp_results)

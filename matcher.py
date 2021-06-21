@@ -3,8 +3,22 @@ from typing import Callable, Sequence, Tuple
 import pandas as pd
 import numpy.ma as ma
 import numpy as np
+import scipy.fft
+import scipy.integrate
 from pandas.core.frame import DataFrame
 from pandas.core.generic import NDFrame
+
+def fft_periodicity(series):
+    frequency_space = np.square(scipy.fft.fft(series))
+    autocorrelation = np.abs(scipy.fft.ifft(frequency_space))
+    period = np.argmax(autocorrelation)
+    print('Period: {}, Frequency: {}'.format(period, 1 / period))
+    frequency_space = np.abs(frequency_space)
+    power = np.power(frequency_space, 4)
+    return scipy.integrate.simps(power)
+
+def measure_periodicity(series):
+    return fft_periodicity(series)
 
 class Relation:
     @staticmethod
@@ -139,17 +153,34 @@ class Matcher:
 
         return questions[0][0]
 
-    def final_matching(self):
+    def final_matching(self, gsp_results: NDFrame) -> DataFrame:
         colors = ['blue', 'orange', 'green', 'red', 'purple']
-        for (i, label) in enumerate(self.labels):
-            match = np.argmax(np.transpose(self.pairing_table)[i])
-            color = colors[match]
-            print('{} matches with {}'.format(label, color))
+        final_columns = [''] * len(gsp_results.columns)
+        period_scores = [(0, 0.0)] * len(gsp_results.columns)
+
+        for (i, series) in enumerate(np.transpose(gsp_results.values)):
+            period_scores[i] = (i, measure_periodicity(series[-180:]))
+
+        period_scores.sort(key=lambda x: -x[1])
+        used_series = []
+
+        for (i, label) in enumerate(self.always_on):
+            (index, score) = period_scores[i]
+            final_columns[index] = label
+            used_series.append(index)
+
+        remaining = set(range(len(gsp_results.columns))) - set(used_series)
+        for pi in remaining:
+            match = np.argmax(self.pairing_table[pi])
+            final_columns[pi] = self.labels[match]
+
+        gsp_results.columns = final_columns
+        return gsp_results
 
     # Run over each frame to query user and update model
-    def process_frame(self, current_time: int, frame_size: int, gsp_result: DataFrame, gsp_truth: DataFrame) -> None:
-        frame_disag = gsp_result[current_time:]
-        frame_truth = gsp_truth[current_time:]
+    def process_frame(self, current_time: int, frame_size: int, gsp_result: NDFrame, gsp_truth: NDFrame) -> None:
+        frame_disag: NDFrame = gsp_result[current_time:]
+        frame_truth: NDFrame = gsp_truth[current_time:]
 
         powers = self.compute_appliance_power(frame_disag)
         label_candidates = self.query_labels()
