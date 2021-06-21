@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 from __future__ import division
 import warnings
+
+from pandas.core.frame import DataFrame
+from pandas.core.generic import NDFrame
 warnings.filterwarnings("ignore")
 import pandas as pd
 import numpy as np
@@ -148,8 +151,8 @@ while current_time < len(data_vec):
     trial_clusters = gsp.extend_refined_clustering_block(trial_clusters, frame_events, hist_delta_power, settings.sigma, settings.ri)
 
     #The line below modifies the results somehow which screws everything up
-    gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
-    gsp_truth = demo_file_truth[0:len(gsp_results)]
+    gsp_results: DataFrame = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
+    gsp_truth: DataFrame = demo_file_truth[0:len(gsp_results)]
     #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
     #matcher.process_frame(current_frame, settings.frame_size, gsp_results, gsp_truth)
     matcher.process_frame(current_time, settings.frame_size, gsp_truth, gsp_truth)

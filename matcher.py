@@ -4,18 +4,19 @@ import pandas as pd
 import numpy.ma as ma
 import numpy as np
 from pandas.core.frame import DataFrame
+from pandas.core.generic import NDFrame
 
 class Relation:
     @staticmethod
-    def equals(value, target):
+    def equals(value: float, target: float) -> bool:
         return value == target
 
     @staticmethod
-    def gt(value, target):
+    def gt(value: float, target: float) -> bool:
         return value > target
 
     @staticmethod
-    def lt(value, target):
+    def lt(value: float, target: float) -> bool:
         return value < target
 
 class Question:
@@ -69,7 +70,7 @@ class Matcher:
         self.budget = budget
 
     @staticmethod
-    def compute_entropy(row: np.ndarray) -> float:
+    def compute_entropy(row: Sequence[float]) -> float:
         entropy = 0.0
         row_sum = np.sum(row)
 
@@ -84,7 +85,7 @@ class Matcher:
         return np.sum(row) / Matcher.compute_entropy(row)
 
     # Return the individual appliance powers from the result
-    def compute_appliance_power(self, gsp_result: DataFrame) -> Sequence[np.ndarray]:
+    def compute_appliance_power(self, gsp_result: NDFrame) -> Sequence[np.ndarray]:
         return [a for a in gsp_result.transpose().values]
 
     # Return the base labels to query from, at most 5
@@ -97,7 +98,7 @@ class Matcher:
 
         # Do threshold over whole thing, TTTTT streams is on, count number of for minutes (T)
         # Count number of streams for N
-        threshed = appliance_power > threshold
+        threshed = np.greater(appliance_power, threshold)
 
         n = 0
         t = 0
