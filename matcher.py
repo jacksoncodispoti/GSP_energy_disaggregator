@@ -5,6 +5,7 @@ import numpy.ma as ma
 import numpy as np
 import scipy.fft
 import scipy.integrate
+import matplotlib.pyplot as plt
 from pandas.core.frame import DataFrame
 from pandas.core.generic import NDFrame
 
@@ -83,6 +84,21 @@ class Matcher:
         self.pairing_table = np.zeros((power_size, len(labels) - len(always_on)))
         self.budget = budget
 
+        self.question_pool = [Question('t', 5, Relation.lt),
+            Question('t', 15, Relation.lt),
+            Question('t', 15, Relation.gt),
+            Question('t', 30, Relation.gt),
+            Question('n', 1, Relation.equals),
+            Question('n', 2, Relation.equals),
+            Question('n', 2, Relation.gt)
+        ]
+        self.question_selections = [0] * len(self.question_pool)
+        self.inconclusive_questions = 0
+        self.power_inconclusive = 0
+        self.label_inconclusive = 0
+        self.total_questions = 0
+        self.votes = []
+
     @staticmethod
     def compute_entropy(row: Sequence[float]) -> float:
         entropy = 0.0
@@ -96,6 +112,8 @@ class Matcher:
 
     @staticmethod
     def compute_consensus(row) -> float:
+        if np.sum(row) == 0:
+            return 0.0
         return np.sum(row) / Matcher.compute_entropy(row)
 
     # Return the individual appliance powers from the result
@@ -108,17 +126,20 @@ class Matcher:
 
     # Return a tuple (n, t) where n is number of times on and t is avg. on time
     def compute_attributes(self, appliance_power: np.ndarray) -> Tuple[int, float]:
-        threshold = 20
+        threshold = 10
 
         # Do threshold over whole thing, TTTTT streams is on, count number of for minutes (T)
         # Count number of streams for N
-        threshed = np.greater(appliance_power, threshold)
+        w = 5
+        power = np.convolve(appliance_power, np.ones(w), 'valid') / w
+        threshed = np.greater(power, threshold)
+        #threshed = np.greater(appliance_power, threshold)
 
         n = 0
         t = 0
         last = False
 
-        for b in threshed:
+        for (i, b) in enumerate(threshed):
             if b:
                 t += 1
 
@@ -127,34 +148,38 @@ class Matcher:
                     n += 1
                 last = b
 
-        if n != 0:
-            t /= n
+        #if n != 0:
+        #    t /= n
 
         return (n, t)
 
-    def question_consensus(self, q: Question) -> float:
-        rows = [r for r in self.pairing_table if q.test(*self.compute_attributes(r))]
-        return np.mean([Matcher.compute_consensus(r) for r in rows])
+    def question_consensus(self, q: Question, attributes: Sequence[Tuple[int, float]]) -> float:
+        rows = [r for (r, a) in zip(self.pairing_table, attributes) if q.test(*a)]
+
+        if len(rows) == 0:
+            return np.inf
+        consensus = np.mean([Matcher.compute_consensus(r) for r in rows])
+        return consensus
 
     # Returns a question to apply to the current frame
     def select_question(self, attributes: Sequence[Tuple[int, float]]) -> Question:
         # Initially, questions will be about preset times, < 5, < 15, > 15 min
         # 1 time, 2 times, 3 or more times
-        questions = [Question('t', 5, Relation.lt),
-            Question('t', 15, Relation.lt),
-            Question('t', 15, Relation.gt),
-            Question('n', 1, Relation.equals),
-            Question('n', 2, Relation.equals),
-            Question('n', 2, Relation.gt)
-        ]
 
-        questions = [(q, self.question_consensus(q)) for q in questions]
+        questions = [(q, self.question_consensus(q, attributes)) for q in self.question_pool]
         questions.sort(key=lambda x: x[1])
 
+        self.question_selections[self.question_pool.index(questions[0][0])] += 1
         return questions[0][0]
 
+    def print_question_pool(self):
+        print('Asked {} questions, {} inconclusive'.format(self.total_questions, self.inconclusive_questions))
+        print('{} total votes'.format(np.sum(self.pairing_table)))
+        print('Avg vote: {}, median: {}'.format(np.mean(self.votes), np.median(self.votes)))
+        for (q, c) in zip(self.question_pool, self.question_selections):
+            print('{}: {}'.format(q, c))
+
     def final_matching(self, gsp_results: NDFrame) -> DataFrame:
-        colors = ['blue', 'orange', 'green', 'red', 'purple']
         final_columns = [''] * len(gsp_results.columns)
         period_scores = [(0, 0.0)] * len(gsp_results.columns)
 
@@ -185,9 +210,13 @@ class Matcher:
         powers = self.compute_appliance_power(frame_disag)
         label_candidates = self.query_labels()
         attributes = [self.compute_attributes(power) for power in powers]
+        #for (power, attr) in zip(powers, attributes):
+        #    plt.plot(power, label=attr)
+        #plt.legend()
+        #plt.show()
 
         # Ask budgets when budget available
-        for i in range(self.budget):
+        for question_num in range(self.budget):
             question = self.select_question(attributes)
             print('Asking question: {}'.format(question))
 
@@ -205,10 +234,17 @@ class Matcher:
             attributes_truth = [self.compute_attributes(power) for power in powers_truth]
             candidate_labels = [i for (i, a) in enumerate(attributes_truth) if question.test(*a)]
             candidate_labels = [frame_truth.columns[i] for i in candidate_labels]
+            candidate_labels = list(set(candidate_labels) - set(self.always_on))
 
             # Compute weight of the question for each pairing
             # Lower with more candidates
-            weight = 1.0 / len(candidate_labels) / len(candidate_powers)
+            self.total_questions += 1
+            if candidate_labels and candidate_powers:
+                weight = 1.0 / len(candidate_labels) / len(candidate_powers)
+                self.votes.append(weight)
+            else:
+                self.inconclusive_questions += 1
+                weight = 0.0
 
             print('{} {}'.format(question, weight))
 

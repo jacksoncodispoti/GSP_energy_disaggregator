@@ -94,7 +94,7 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 extra_amount = 0
 
 identifier = Identifier(settings.T_Positive, csvfileresponse)
-matcher = Matcher(5, [c for c in demo_file_truth.columns], ['refrigerator'], 2)
+matcher = Matcher(5, [c for c in demo_file_truth.columns], ['refrigerator'], 1)
 
 #Try to create a set of initial clusters, re-try until SVD divergence stops
 while True:
@@ -184,6 +184,7 @@ while current_time < len(data_vec):
 print('\tEnding at {}'.format(current_time))
 #gsp_results = aggregate_results(trial_clusters, data_vec, hist_delta_power, settings)
 gsp_results = matcher.final_matching(gsp_truth)
+matcher.print_question_pool()
 #gsp_results = matcher.final_matching()
 
 #identifier.process_frame(current_frame, settings.frame_size, gsp_results)
