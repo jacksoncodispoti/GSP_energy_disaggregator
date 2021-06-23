@@ -15,6 +15,8 @@ import numpy as np
 import gsp_support as gsp
 import matplotlib.pyplot as plt
 from config import get_disagg_settings, DisaggSettings
+import scipy
+from scipy.fft import fft
 
 #%%
 print("Loading settings")
@@ -71,7 +73,7 @@ appliance_pairs = gsp.feature_matching_module(pairs, delta_p, finalclusters, set
 power_series, appliance_signatures = gsp.generate_appliance_powerseries(appliance_pairs, delta_p)
 
 # label the disaggregated appliance clusters by comparing with signature DB
-#labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
+labeled_appliances = gsp.label_appliances(appliance_signatures, signature_database, threshold)
 
 # Attach timestamps to generated series
 power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
@@ -79,11 +81,22 @@ power_timeseries = gsp.create_appliance_timeseries(power_series, main_ind)
 # create pandas dataframe of all series
 gsp_result = pd.concat(power_timeseries, axis = 1)
 
-labels = ['None' for i in range(len(gsp_result.columns))]
-#labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
+#labels = ['None' for i in range(len(gsp_result.columns))]
+labels = [(labeled_appliances[i] if i in labeled_appliances else 'Unknown') for i in range(len(gsp_result.columns))]
 #labels= [i[1] for i in list(labeled_appliances.items())]
 
 #gsp_result.columns = labels
+
+frequency_results = []
+for (result,label) in zip(gsp_result.values.T, labels):
+    frequency_space = np.abs(fft(result))
+    power = np.power(frequency_space, 4)
+    result = scipy.integrate.simps(power)
+
+    print('{}: {}'.format(label, result))
+    frequency_results.append(result)
+
+labels = [ '{} {}'.format(label, result) for (label, result) in zip(labels, frequency_results)]
 
 axs[2].stackplot(gsp_result.index, gsp_result.values.T, labels=labels)
 axs[2].set_title("Disaggregated appliance [Results]", size=8)

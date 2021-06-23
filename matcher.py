@@ -92,6 +92,8 @@ class Matcher:
             Question('n', 2, Relation.equals),
             Question('n', 2, Relation.gt)
         ]
+        self.question_mask = [True] * len(self.question_pool)
+
         self.question_selections = [0] * len(self.question_pool)
         self.inconclusive_questions = 0
         self.power_inconclusive = 0
@@ -166,11 +168,14 @@ class Matcher:
         # Initially, questions will be about preset times, < 5, < 15, > 15 min
         # 1 time, 2 times, 3 or more times
 
-        questions = [(q, self.question_consensus(q, attributes)) for q in self.question_pool]
+        questions = [(q, self.question_consensus(q, attributes)) for (i, q) in enumerate(self.question_pool) if self.question_mask[i]]
         questions.sort(key=lambda x: x[1])
 
-        self.question_selections[self.question_pool.index(questions[0][0])] += 1
-        return questions[0][0]
+        selection = questions[0][0]
+        selection_index = self.question_pool.index(selection)
+        self.question_selections[selection_index] += 1
+        self.question_mask[selection_index] = False
+        return selection 
 
     def print_question_pool(self):
         print('Asked {} questions, {} inconclusive'.format(self.total_questions, self.inconclusive_questions))
@@ -204,6 +209,8 @@ class Matcher:
 
     # Run over each frame to query user and update model
     def process_frame(self, current_time: int, frame_size: int, gsp_result: NDFrame, gsp_truth: NDFrame) -> None:
+        self.question_mask = [True] * len(self.question_pool)
+
         frame_disag: NDFrame = gsp_result[current_time:]
         frame_truth: NDFrame = gsp_truth[current_time:]
 
@@ -214,6 +221,12 @@ class Matcher:
         #    plt.plot(power, label=attr)
         #plt.legend()
         #plt.show()
+
+
+        # Get labels for question
+        candidate_labels = list(label_candidates)
+        powers_truth = self.compute_appliance_power(frame_truth)
+        attributes_truth = [self.compute_attributes(power) for power in powers_truth]
 
         # Ask budgets when budget available
         for question_num in range(self.budget):
@@ -228,16 +241,10 @@ class Matcher:
                 if answer:
                     candidate_powers.append((i, power))
 
-            # Get labels for question
-            candidate_labels = label_candidates
-            powers_truth = self.compute_appliance_power(frame_truth)
-            attributes_truth = [self.compute_attributes(power) for power in powers_truth]
             candidate_labels = [i for (i, a) in enumerate(attributes_truth) if question.test(*a)]
             candidate_labels = [frame_truth.columns[i] for i in candidate_labels]
             candidate_labels = list(set(candidate_labels) - set(self.always_on))
 
-            # Compute weight of the question for each pairing
-            # Lower with more candidates
             self.total_questions += 1
             if candidate_labels and candidate_powers:
                 weight = 1.0 / len(candidate_labels) / len(candidate_powers)

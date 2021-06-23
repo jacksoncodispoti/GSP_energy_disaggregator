@@ -94,7 +94,7 @@ threshold = 2000 # threshold of DTW algorithm used for appliance power signature
 extra_amount = 0
 
 identifier = Identifier(settings.T_Positive, csvfileresponse)
-matcher = Matcher(5, [c for c in demo_file_truth.columns], ['refrigerator'], 1)
+matcher = Matcher(5, [c for c in demo_file_truth.columns], ['refrigerator'], 2)
 
 #Try to create a set of initial clusters, re-try until SVD divergence stops
 while True:
